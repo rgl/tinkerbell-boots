@@ -161,37 +161,73 @@ func (c *Client) DiscoverHardwareFromIP(ip net.IP) (*Discovery, error) {
 	defer metrics.CacherRequestsInProgress.With(labels).Dec()
 
 	var msg getRequest
+	var b []byte
 	discoveryType := os.Getenv("DISCOVERY_TYPE")
 	switch discoveryType {
 	case discoveryTypeCacher:
 		msg = &cacher.GetRequest{
 			IP: ip.String(),
 		}
+
+		resp, err := c.client.ByIP(context.Background(), msg)
+
+		cacherTimer.ObserveDuration()
+		metrics.CacherRequestsInProgress.With(labels).Dec()
+
+		if err != nil {
+			return nil, errors.Wrap(err, "get hardware by ip from cacher")
+		}
+
+		b = []byte(resp.(*cacher.Hardware).JSON)
+		//if string(b) != "" {
+		//	metrics.CacherCacheHits.With(labels).Inc()
+		//	return NewDiscovery(b)
+		//}
 	case discoveryTypeTinkerbell:
 		msg = &tink.GetRequest{
 			Ip: ip.String(),
 		}
+
+		resp, err := c.client.ByIP(context.Background(), msg)
+
+		cacherTimer.ObserveDuration()
+		metrics.CacherRequestsInProgress.With(labels).Dec()
+
+		if err != nil {
+			return nil, errors.Wrap(err, "get hardware by ip from tink")
+		}
+
+		b, err = json.Marshal(resp)
+		if err != nil {
+			return nil, errors.New("marshalling tink hardware")
+		}
+
+		// or maybe just check for error?
+		//if string(b) != "{}" {
+		//	metrics.CacherCacheHits.With(labels).Inc()
+		//	return NewDiscovery(b)
+		//}
 	default:
 		return nil, errors.New("invalid discovery type")
 	}
 
-	//msg := &hardware.GetRequest{
-	//	Ip: ip.String(),
+	////msg := &hardware.GetRequest{
+	////	Ip: ip.String(),
+	////}
+	//resp, err := c.client.ByIP(context.Background(), msg)
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "get hardware by ip from tink")
 	//}
-	resp, err := c.client.ByIP(context.Background(), msg)
-	if err != nil {
-		return nil, errors.Wrap(err, "get hardware by ip from tink")
-	}
-
-	b, err := json.Marshal(resp)
-	if err != nil {
-		return nil, errors.New("marshalling tink hardware")
-	}
-
-	//if string(b) == "{}" {
-	//	return nil, errors.New("empty response from cacher")
+	//
+	//b, err := json.Marshal(resp)
+	//if err != nil {
+	//	return nil, errors.New("marshalling tink hardware")
 	//}
-	metrics.CacherCacheHits.With(labels).Inc()
+	//
+	////if string(b) == "{}" {
+	////	return nil, errors.New("empty response from cacher")
+	////}
+	//metrics.CacherCacheHits.With(labels).Inc()
 	return NewDiscovery(b)
 }
 
