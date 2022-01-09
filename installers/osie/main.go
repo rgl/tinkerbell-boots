@@ -70,10 +70,15 @@ func bootScript(ctx context.Context, action string, j job.Job, s ipxe.Script) ip
 }
 
 func kernelParams(ctx context.Context, action, state string, j job.Job, s ipxe.Script) ipxe.Script {
-	s.Args("ip=dhcp") // Dracut?
-	s.Args("modules=loop,squashfs,sd-mod,usb-storage")
-	s.Args("alpine_repo=" + alpineMirror(j))
-	s.Args("modloop=${base-url}/" + modloopPath(j))
+	s.Args("net.ifnames=0")
+	s.Args("boot=live")
+	s.Args("ethdevice-timeout=60")
+	s.Args("fetch=${base-url}/filesystem-${parch}.squashfs")
+	s.Args("hooks=${base-url}/config-${parch}.sh")
+	s.Args("components")
+	s.Args("username=osie")
+	s.Args("noautologin")
+
 	s.Args("tinkerbell=${tinkerbell}")
 	s.Args("syslog_host=${syslog_host}")
 	s.Args("parch=${parch}")
@@ -143,21 +148,12 @@ func kernelParams(ctx context.Context, action, state string, j job.Job, s ipxe.S
 
 	s.Args("initrd=" + initrdPath(j))
 
-	var console string
 	if j.IsARM() {
-		console = "ttyAMA0"
-		if j.PlanSlug() == "baremetal_hua" {
-			console = "ttyS0"
-		}
+		s.Args("console=ttyAMA0,115200")
 	} else {
-		s.Args("console=tty0")
-		if j.PlanSlug() == "d1p.optane.x86" || j.PlanSlug() == "d1f.optane.x86" {
-			console = "ttyS0"
-		} else {
-			console = "ttyS1"
-		}
+		s.Args("console=ttyS0,115200")
 	}
-	s.Args("console=" + console + ",115200")
+	s.Args("console=tty1")
 
 	return s
 }
